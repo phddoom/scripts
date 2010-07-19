@@ -2,3 +2,11 @@ These are various scripts that I write to simplify my daily life.
 Or sometimes just to have fun programming.
 As I am currently working in Ruby most scripts will be implemented in Ruby.
 Other languages might follow in my pursuit of learning. 
+
+Script Ideas
+
+ding!_commands_done
+  use dzen2 or notify-send to alert user when command/process is done
+
+a dzen library/wraper
+  perhaps a addon to the String class to dzen2 escape strings correctly
