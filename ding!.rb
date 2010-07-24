@@ -10,7 +10,7 @@ opts = GetoptLong.new(
   ["--dzen", "-d", GetoptLong::REQUIRED_ARGUMENT]
 )
 
-displayer_args = "-p 10"
+displayer_args = "-p 10 -w 400 -l 18 -sa c -e 'onstart=uncollapse;button1=exit'"
 displayer = "dzen2"
 command = String.new
 

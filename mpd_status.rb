@@ -1,24 +1,18 @@
 #! /usr/bin/env ruby
 
-def get_mpd_status
-  mpd_status = `mpc status`
-  status_array = mpd_status.split("\n")
-  status = String.new
-  if status_array.size == 3 && !status_array[1].include?("[paused]")
-    @song_title = status_array[0].split("/").last
-    song_status = status_array[1].split(" ")
-    @song_status = song_status[0]
-    @number_in_playlist = song_status[1]
-    @song_seek = song_status[2]
-    @song_percent_complete = song_status[3]
-    daemon_status = status_array[2].split(":")
-    @volume = daemon_status[1].split(" ").first
-    @repeat = daemon_status[2].split(" ").first
-    @random = daemon_status[3].split(" ").first
-    status =  " MPD: #{@song_title} - #{@song_percent_complete} - VOL: #{@volume} - REP: #{@repeat} - RAN: #{@random}"
-  else
-    status = "MPD: NOT PLAYING"
+require 'notify-dzen'
+require 'dzen'
+require 'librmpd'
+
+def get_mpd_status mpd
+  if !mpd.connected?
+    mpd.connect
   end
+  song = mpd.current_song
+  rep = mpd.repeat?.to_s.capitalize
+  ran = mpd.random?.to_s.capitalize
+  title_from_file = song.file.split("/").last.split(".").first
+  status = mpd.playing?  ? "MPD: #{song.title || title_from_file} by #{song.artist || "Unknown"} - REP: #{rep} - RAN: #{ran}" : "MPD: NOT PLAYING"
   return status
 end
 
@@ -47,16 +41,14 @@ def bat_display
  percent = ((current.to_f/total.to_f) * 100).round
  fg = case 
       when percent < 5
-        "^fg(red)"
+        "red"
       when percent < 25
-        "^fg(yellow)"
+        "yellow"
       else 
-        "^fg(green)"
+        "green"
       end
- status << fg << percent.to_s << "% ^fg()" 
+ status << (percent.to_s + "%").fg(fg)
 end
-
-
 
 def chromo secs
   increment = 4.25
@@ -108,25 +100,66 @@ def chromo secs
   return "#" + red + green + blue
 end
 
-
-
 def time_status
   now = Time.now
-  fg = "^fg(#{ chromo((now.hour * 60) + now.min)})"
-  now.strftime "DATE: #{fg} %A %B %d %I:%M:%S %p %Y ^fg()"
+  now.strftime("DATE:" + "%A %B %d %I:%M:%S %p %Y".fg(chromo((now.hour * 60) + now.min)))
 end
 
-
-
-
-   
-
-while true
-  $stdout.flush
-  display =   time_status + get_mpd_status + bat_display
-  display = display.dump
-  puts  display[1 ... display.size - 1]
-  sleep 1
+def get_volume channel
+  output = `amixer -c 0 get #{channel}`
+  output = output.split("\n")[4].split(" ")
+  if output.last.include?("[on]")
+    return "^ca(1,amixer -c 0 set #{channel} toggle)^fg(green)#{output[3]} ^fg ^ca()"
+  else
+    return "^ca(1,amixer -c 0 set #{channel} toggle)^fg(red)#{output[3]} ^fg ^ca()"
+  end
 end
 
+def volume_display
+  status = "Sound: Master: " + get_volume("Master")
+  #status << " Speaker: " << get_volume("Speaker")
+  return status
+end
 
+def notify_current_song song
+  handler = NotificationHandler.new
+  song_body = String.new
+  song.each do |k,v|
+    if k != "title"
+      song_body << (k + ": " + v + "\n") 
+    end
+  end
+  # This convoluted assingment uses splits to get the file name
+  # from the file path of the song
+  title_from_file = song.file.split("/").last.split(".").first
+  handler << Notification.new(song.title || title_from_file, song_body)
+  handler.notify
+end
+
+def display
+  #dzen options
+  dzen = "dzen2 -p "
+  display_settings = "-expand right -dock -y -1"
+  actions = " -e 'onstart=lower'"
+  font = " -fn 'Terminus-12'"
+  
+
+  #mpd setup
+  mpd = MPD.new
+  mpd.connect true
+  mpd.register_callback(Object.method('notify_current_song'), MPD::CURRENT_SONG_CALLBACK)
+
+  #I herd you like pipes ...
+  IO.popen dzen + display_settings + actions + font, "w" do |pipe|
+    while true
+      $stdout.flush
+      display =   time_status + get_mpd_status(mpd) + bat_display + volume_display
+      display = display.dump
+      pipe.puts  display[1 ... display.size - 1]
+      #sleep 0.25
+    end
+  end
+
+end
+
+display
