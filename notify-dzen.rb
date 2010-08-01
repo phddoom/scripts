@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 
-require 'dzen'
+load '/home/odin/scripts/dzen.rb'
 
 class Notification
   attr_reader :title, :timeout, :urgency, :body

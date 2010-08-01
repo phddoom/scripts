@@ -139,8 +139,8 @@ end
 def display
   #dzen options
   dzen = "dzen2 -p "
-  display_settings = "-expand right -dock -y -1"
-  actions = " -e 'onstart=lower'"
+  display_settings = "-expand right -y -1 -l 5 -ta l -sa c"
+  actions = " -e 'onstart=lower,uncollapse;button1=togglecollapse;button4=scrollup;button5=scrolldown;'"
   font = " -fn 'Terminus-12'"
   
 
@@ -148,15 +148,28 @@ def display
   mpd = MPD.new
   mpd.connect true
   mpd.register_callback(Object.method('notify_current_song'), MPD::CURRENT_SONG_CALLBACK)
-
+  
+  old_song = mpd.current_song
+  song_body = ""
+  display_slave = false
   #I herd you like pipes ...
   IO.popen dzen + display_settings + actions + font, "w" do |pipe|
     while true
       $stdout.flush
-      display =   time_status + get_mpd_status(mpd) + bat_display + volume_display
-      display = display.dump
-      pipe.puts  display[1 ... display.size - 1]
-      #sleep 0.25
+      current_song = mpd.current_song
+      if current_song.file != old_song.file
+        song_body = "^cs\n"
+        current_song.each do |k,v|
+          song_body << (k + ": " + v + "\n")
+        end
+        old_song = current_song
+        display_slave = true
+      else 
+        display_slave = false
+      end
+      display =   "^tw()" + time_status + get_mpd_status(mpd) + bat_display + volume_display
+      pipe.puts  display, song_body if display_slave
+      pipe.puts display unless display_slave
     end
   end
 

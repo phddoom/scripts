@@ -20,6 +20,7 @@ room.listen do |message|
   title = "Campfire Message"
   user = message[:user]
   body = user[:name] + ": " + message[:body].escape if message[:body]
+  body ||= "Something posted"
   handler << Notification.new(title, body)
   handler.notify
 end

@@ -1,42 +1,18 @@
-#! /usr/bin/env ruby
+#!/usr/bin/env ruby
 
 #ding!
 #A utility to alert the user that a command/process has completed
 
-require 'getoptlong'
-ENV["POSIXLY_CORRECT"]="true"
+load '/home/odin/scripts/notify-dzen.rb'
 
-def help
-  puts "Long\tShort\tDescription"
-  puts "--help\t-h\tThis help"
-  puts "--dzen\t-d\tPass options as a string to dzen"
-end
+handler = NotificationHandler.new
 
-opts = GetoptLong.new(
-  ["--help", "-h", GetoptLong::NO_ARGUMENT],
-  ["--dzen", "-d", GetoptLong::REQUIRED_ARGUMENT]
-)
+command = ARGV.join " "
 
-displayer_args = "-p 10 -w 400 -l 18 -sa c -e 'onstart=uncollapse;button1=exit'"
-displayer = "dzen2"
-command = String.new
+output = `#{command}`
+puts output
 
-
-opts.each do |opt, arg|
-  case opt
-  when "--help"
-    help
-    exit
-  when "--dzen"
-    displayer = "dzen2"
-    displayer_args = arg
-  end
-end
-
-
-output = `#{ARGV.join " "}`
-
-status = $?.exitstatus
-
-`echo -e -n #{output.dump} | #{displayer} #{displayer_args}`
+ding = Notification.new "Ding: #{ARGV.first} done", output
+handler << ding
+handler.notify
 
