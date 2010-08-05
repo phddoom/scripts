@@ -4,11 +4,11 @@ STAT_METHODS = File::Stat.instance_methods - Object.instance_methods - Comparabl
 
 def find file
   dir = `gvim --remote-expr 'getcwd()'`.chomp
-  dir ||= "~"
-  Dir.chdir()
+  dir ||= ENV["HOME"]
+  Dir.chdir(dir)
   results = []
   search_array = file.split("/")
-  search_array[-1] = "*"+ search_array[-1]
+  search_array[-1] = "*"+ search_array[-1] unless search_array[-1][0] == 46 
   file = search_array.join("/")
   search_glob = "**/"+ (file.gsub(/(\w)/, '\1*').gsub("/", '/**/'))
   Dir.glob(search_glob) do |filename|
