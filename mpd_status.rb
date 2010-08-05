@@ -5,14 +5,11 @@ require 'dzen'
 require 'librmpd'
 
 def get_mpd_status mpd
-  if !mpd.connected?
-    mpd.connect
-  end
   song = mpd.current_song
   rep = mpd.repeat?.to_s.capitalize
   ran = mpd.random?.to_s.capitalize
   title_from_file = song.file.split("/").last.split(".").first
-  status = mpd.playing?  ? "MPD: #{song.title || title_from_file} by #{song.artist || "Unknown"} - REP: #{rep} - RAN: #{ran}" : "MPD: NOT PLAYING"
+  status = mpd.playing? ? "MPD: #{song.title || title_from_file} by #{song.artist || "Unknown"} - REP: #{rep} - RAN: #{ran}" : "MPD: NOT PLAYING"
   return status
 end
 
@@ -35,7 +32,7 @@ def bat_display
  state_hash = file_to_hash @PATH + "state"
  info_hash = file_to_hash @PATH + "info"
  status << state_hash[:charging_state]
- status << " PERCENT: "
+ status << " PERCENT:"
  total = info_hash[:last_full_capacity].split(" ").first
  current = state_hash[:remaining_capacity].split(" ").first
  percent = ((current.to_f/total.to_f) * 100).round
@@ -47,7 +44,7 @@ def bat_display
       else 
         "green"
       end
- status << (percent.to_s + "%").fg(fg)
+ status << (percent.to_s + "% ").fg(fg)
 end
 
 def chromo secs
@@ -109,9 +106,9 @@ def get_volume channel
   output = `amixer -c 0 get #{channel}`
   output = output.split("\n")[4].split(" ")
   if output.last.include?("[on]")
-    return "^ca(1,amixer -c 0 set #{channel} toggle)^fg(green)#{output[3]} ^fg ^ca()"
+    return "^ca(1,amixer -c 0 set #{channel} toggle > /dev/null)^fg(green)#{output[3]} ^fg ^ca()"
   else
-    return "^ca(1,amixer -c 0 set #{channel} toggle)^fg(red)#{output[3]} ^fg ^ca()"
+    return "^ca(1,amixer -c 0 set #{channel} toggle > /dev/null)^fg(red)#{output[3]} ^fg ^ca()"
   end
 end
 
@@ -139,40 +136,52 @@ end
 def display
   #dzen options
   dzen = "dzen2 -p "
-  display_settings = "-expand right -y -1 -l 5 -ta l -sa c"
-  actions = " -e 'onstart=lower,uncollapse;button1=togglecollapse;button4=scrollup;button5=scrolldown;'"
+  display_settings = "-xs 1 -y -1 -l 10 -ta l -sa c"
+  actions = " -e 'onstart=lower;button4=scrollup;button5=scrolldown;'"
   font = " -fn 'Terminus-12'"
   
 
   #mpd setup
-  mpd = MPD.new
-  mpd.connect true
-  mpd.register_callback(Object.method('notify_current_song'), MPD::CURRENT_SONG_CALLBACK)
+  @mpd = MPD.new
+  @mpd.connect true
+  @mpd.register_callback(Object.method('notify_current_song'), MPD::CURRENT_SONG_CALLBACK)
   
-  old_song = mpd.current_song
   song_body = ""
-  display_slave = false
   #I herd you like pipes ...
-  IO.popen dzen + display_settings + actions + font, "w" do |pipe|
+  IO.popen dzen + display_settings + actions + font, "r+" do |pipe|
     while true
-      $stdout.flush
-      current_song = mpd.current_song
-      if current_song.file != old_song.file
-        song_body = "^cs\n"
-        current_song.each do |k,v|
-          song_body << (k + ": " + v + "\n")
-        end
-        old_song = current_song
-        display_slave = true
-      else 
-        display_slave = false
+      begin
+        callback_array = pipe.read_nonblock(1000) 
+      rescue Errno::EWOULDBLOCK, Errno::EAGAIN, Errno::EINTR
+        callback_array = ""
       end
-      display =   "^tw()" + time_status + get_mpd_status(mpd) + bat_display + volume_display
-      pipe.puts  display, song_body if display_slave
-      pipe.puts display unless display_slave
+      slave = eval callback_array
+      display = "^tw()" + time_status.ca(1, "echo 'time_callback'") + get_mpd_status(@mpd).ca(1, "echo 'mpd_callback'") + bat_display.ca(1,"echo 'bat_callback'") + volume_display
+      pipe.puts display
+      pipe.puts "^cs()\n^togglecollapse()\n"<< slave.to_s unless slave.nil?
     end
   end
 
+end
+
+def time_callback
+  return `cal`
+end
+
+def mpd_callback
+  output = ""
+  @mpd.current_song.each do |k, v|
+    output << (k + ": " + v + "\n")
+  end
+  return output
+end
+
+def bat_callback
+  return "bat_callback_method \n\n This should provide more battery info \n\n more info"
+end
+
+def volume_callback
+  return "volume_callback_method"
 end
 
 display

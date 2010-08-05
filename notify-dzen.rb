@@ -30,6 +30,7 @@ class NotificationHandler
   #Methods that will dequeue or clear notification queue
   def notify
     notification = @notification_queue.shift
+    return if notification.nil?
     num_of_lines, formatted_body = calculate_num_of_lines notification.body
     dzen = "dzen2 -p #{notification.timeout}"
     display_settings = " -geometry -500+0 -w 500 -l #{5} -ta l -sa c"
@@ -39,7 +40,8 @@ class NotificationHandler
       pipe.puts notification.title
       pipe.puts formatted_body
       pipe.close
-    end unless notification.nil?
+    end
+    self.notify
   end
 
   private
