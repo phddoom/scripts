@@ -35,7 +35,7 @@ class NotificationHandler
     dzen = "dzen2 -p #{notification.timeout}"
     display_settings = " -geometry -500+0 -w 500 -l #{5} -ta l -sa c"
     actions = " -e 'onstart=uncollapse,scrollhome;button1=exit;button4=scrollup;button5=scrolldown;'"
-    font = " -fn 'Terminus-12'"
+    font = " -fn 'Terminus-8'"
     IO.popen dzen + display_settings + actions + font, "w" do |pipe|
       pipe.puts notification.title
       pipe.puts formatted_body

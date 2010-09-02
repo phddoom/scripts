@@ -1,10 +1,22 @@
-#! /usr/bin/env ruby
+#! /usr/bin/ruby
+
+Dir.chdir("/home/odin/scripts")
 
 require 'notify-dzen'
 require 'dzen'
 require 'librmpd'
+require 'rubygems'
+
+UNFOCUS_BORDER = "#4c7899"
+UNFOCUS_BACKGROUND = "#285577"
+UNFOCUS_TEXT = "#ffffff"
+
+FOCUS_BORDER = "#333333"
+FOCUS_BACKGROUND = "#222222"
+FOCUS_TEXT = "#888888"
 
 def get_mpd_status mpd
+  mpd.connect unless mpd.connected?
   song = mpd.current_song
   rep = mpd.repeat?.to_s.capitalize
   ran = mpd.random?.to_s.capitalize
@@ -133,20 +145,34 @@ def notify_current_song song
   handler.notify
 end
 
+def workspace i3
+  ws_str = ""
+  i3.get_workspaces.each do |ws|
+    ws_str << case ws["focused"]
+    #DRY this up
+    #Also add urgency
+    when true
+      "^fg(#{UNFOCUS_BACKGROUND})^r(20x20)^fg()^p(-20)^ib(1)^fg(#{UNFOCUS_BORDER})^ro(21x21)^fg()^p(-14)^ib(1)^fg(#{UNFOCUS_TEXT})#{ws["name"]}^fg()".ca(1,"i3-msg '#{ws["name"]}' > /dev/null").strip + " "
+    when false
+      "^fg(#{FOCUS_BACKGROUND})^r(20x20)^fg()^p(-20)^ib(1)^fg(#{FOCUS_BORDER})^ro(21x21)^fg()^p(-14)^ib(1)^fg(#{FOCUS_TEXT})#{ws["name"]}^fg()".ca(1, "i3-msg '#{ws["name"]}' > /dev/null").strip + " "
+    end
+  end
+  ws_str
+end
+
 def display
   #dzen options
   dzen = "dzen2 -p "
   display_settings = "-xs 1 -y -1 -l 10 -ta l -sa c"
   actions = " -e 'onstart=lower;button4=scrollup;button5=scrolldown;'"
-  font = " -fn 'Terminus-12'"
+  font = " -fn 'Terminus-10'"
   
 
   #mpd setup
   @mpd = MPD.new
   @mpd.connect true
   @mpd.register_callback(Object.method('notify_current_song'), MPD::CURRENT_SONG_CALLBACK)
-  
-  song_body = ""
+
   #I herd you like pipes ...
   IO.popen dzen + display_settings + actions + font, "r+" do |pipe|
     while true
@@ -159,16 +185,25 @@ def display
       display = "^tw()" + time_status.ca(1, "echo 'time_callback'") + get_mpd_status(@mpd).ca(1, "echo 'mpd_callback'") + bat_display.ca(1,"echo 'bat_callback'") + volume_display
       pipe.puts display
       pipe.puts "^cs()\n^togglecollapse()\n"<< slave.to_s unless slave.nil?
+      sleep 0.25 
     end
   end
 
 end
 
 def time_callback
-  return `cal`
+  #Add more text processing here
+  #Highlight current date
+  output = `cal`
+  output = output.split("\n")
+  last_week = output.last.split(" ")
+  last_week << ["XX"]*(7 - last_week.size) if last_week.size < 7
+  output[-1] = last_week.join(" ")
+  return output.join("\n")
 end
 
 def mpd_callback
+  #Perhaps add some colors
   output = ""
   @mpd.current_song.each do |k, v|
     output << (k + ": " + v + "\n")
@@ -177,6 +212,7 @@ def mpd_callback
 end
 
 def bat_callback
+  #Flesh this out into something useful
   return "bat_callback_method \n\n This should provide more battery info \n\n more info"
 end
 
