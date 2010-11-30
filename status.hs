@@ -30,7 +30,7 @@ chromo secs | secs >=0 && secs < 239       = (0, 255, a)
                   b = (cl !! ((secs - 240) `div` 4))
                   c = (cl !! (60 - (secs - 480) `div` 4))
                   d = (cl !! ((secs - 720) `div` 4))
-                  e = cl !! ((60 - (secs - 960)) `div` 4)
+                  e = cl !! (60 - (secs - 960) `div` 4)
                   f = cl !! ((secs - 1200) `div` 4)
 
 -- Dzen settings
