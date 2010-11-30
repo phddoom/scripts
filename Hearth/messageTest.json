@@ -1,0 +1,8 @@
+{
+  "id":42,
+  "roomId":7,
+  "userId":3,
+  "body":"null",
+  "createdAt":"01/01/2010",
+  "type":"TextMessage"
+}
