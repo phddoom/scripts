@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
 
+Dir.chdir("/home/odin/scripts")
 require 'rubygems'
 require 'tinder'
 require 'notify-dzen'
@@ -17,10 +18,12 @@ campfire = Tinder::Campfire.new 'mobiwireless', :token => "e41e1ac8bed6085751c4e
 room = campfire.rooms.first
 
 room.listen do |message|
+  puts message.inspect
   title = "Campfire Message"
   user = message[:user]
-  body = user[:name] + ": " + message[:body].escape if message[:body]
-  body ||= "Something posted"
+  type = message[:type]
+  body = user[:name] + ": " + message[:body].escape if type == "TextMessage"
+  body ||= user[:name] + ": " + type 
   handler << Notification.new(title, body)
   handler.notify
 end

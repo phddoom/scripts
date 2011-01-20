@@ -1,14 +1,14 @@
 class String
   def fg color
-    return " ^fg(#{color})" + self + "^fg()"
+    "^fg(#{color})" + self + "^fg()"
   end
 
   def bg color
-    return " ^bg(#{color})" + self + "^bg()"
+    "^bg(#{color})" + self + "^bg()"
   end
 
   def ca(button, action)
-    return " ^ca(#{button},#{action})" + self + "^ca()"
+    "^ca(#{button},#{action})" + self + "^ca()"
   end
 
   def wrap_lines pix=20, width=500

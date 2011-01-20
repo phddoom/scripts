@@ -1,0 +1,29 @@
+#!/usr/bin/env ruby
+
+require 'rubygems'
+require File.dirname(__FILE__) + '/libreap'
+require "clamp"
+
+class Reap < Clamp::Command
+  subcommand "download", "Download Anime" do
+    parameter "[ANIME]", "Name of Anime to download" do |name|
+      Anime.new name
+    end
+
+    parameter "[EPISODES]", "Episodes to download" do |ep|
+      if ep.class == String && !ep.match(/[A-z]|\./)
+        ep.split(",").map(&:to_i)
+      elsif ep.class == String && ep.match(/\.\.|\.\.\./)
+        ep = ep.split("..")
+        Range.new ep.first.to_i, ep.last.to_i
+      end
+    end
+
+    def execute
+      puts anime.inspect if anime
+      puts episodes.inspect if episodes
+    end
+  end
+end
+
+Reap.run

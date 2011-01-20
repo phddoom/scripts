@@ -2,22 +2,18 @@
 
 Dir.chdir("/home/odin/scripts")
 
+require 'rubygems'
 require 'notify-dzen'
 require 'dzen'
 require 'librmpd'
-require 'rubygems'
-require 'i3-ipc'
 
-UNFOCUS_BORDER = "#4c7899"
-UNFOCUS_BACKGROUND = "#285577"
-UNFOCUS_TEXT = "#ffffff"
-
-FOCUS_BORDER = "#333333"
-FOCUS_BACKGROUND = "#222222"
-FOCUS_TEXT = "#888888"
 
 def get_mpd_status mpd
-  mpd.connect unless mpd.connected?
+  begin
+    mpd.connect unless mpd.connected?
+  rescue
+    return " MPD: NOT CONNECTED"
+  end
   song = mpd.current_song
   rep = mpd.repeat?.to_s.capitalize
   ran = mpd.random?.to_s.capitalize
@@ -119,9 +115,9 @@ def get_volume channel
   output = `amixer -c 0 get #{channel}`
   output = output.split("\n")[4].split(" ")
   if output.last.include?("[on]")
-    return "^ca(1,amixer -c 0 set #{channel} toggle > /dev/null)^fg(green)#{output[3]} ^fg ^ca()"
+    return "#{output[3]}".fg("green").ca("1", "amixer -c 0 set #{channel} toggle")
   else
-    return "^ca(1,amixer -c 0 set #{channel} toggle > /dev/null)^fg(red)#{output[3]} ^fg ^ca()"
+    return "#{output[3]}".fg("red").ca("1", "amixer -c 0 set #{channel} toggle")
   end
 end
 
@@ -146,43 +142,28 @@ def notify_current_song song
   handler.notify
 end
 
-def workspace i3
-  ws_str = ""
-  i3.get_workspaces.each do |ws|
-    ws_str << case ws["focused"]
-    #DRY this up
-    #Also add urgency
-    when true
-      "^fg(#{UNFOCUS_BACKGROUND})^r(20x20)^fg()^p(-20)^ib(1)^fg(#{UNFOCUS_BORDER})^ro(21x21)^fg()^p(-14)^ib(1)^fg(#{UNFOCUS_TEXT})#{ws["name"]}^fg()".ca(1,"i3-msg '#{ws["name"]}' > /dev/null").strip + " "
-    when false
-      "^fg(#{FOCUS_BACKGROUND})^r(20x20)^fg()^p(-20)^ib(1)^fg(#{FOCUS_BORDER})^ro(21x21)^fg()^p(-14)^ib(1)^fg(#{FOCUS_TEXT})#{ws["name"]}^fg()".ca(1, "i3-msg '#{ws["name"]}' > /dev/null").strip + " "
-    end
-  end
-  ws_str
-end
-
 def display
   #dzen options
-  dzen = "dzen2 -p -dock "
+  dzen = "dzen2 -p -y -1 "
   display_settings = "-xs 1 -ta l"
   actions = " -e 'onstart=lower;button4=scrollup;button5=scrolldown;'"
   font = " -fn 'Terminus-10'"
-  
 
   #mpd setup
   @mpd = MPD.new
-  @mpd.connect true
-  @mpd.register_callback(Object.method('notify_current_song'), MPD::CURRENT_SONG_CALLBACK)
+  begin
+    @mpd.connect true
+  rescue Exception
+    puts "ERROR: MPD Connection fail"
+  end
+  #@mpd.register_callback(Object.method('notify_current_song'), MPD::CURRENT_SONG_CALLBACK)
   
-  #I3 setup
-  @i3 = I3::IPC.new
-
   #I herd you like pipes ...
   IO.popen dzen + display_settings + actions + font, "w" do |pipe|
     while true
-      display = workspace(@i3) + time_status + get_mpd_status(@mpd) + bat_display + volume_display
+      display = time_status + get_mpd_status(@mpd) + bat_display + volume_display
       pipe.puts display
-      #sleep 0.25 
+      sleep 0.25 
     end
   end
 
