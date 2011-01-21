@@ -11,17 +11,26 @@ class Reap < Clamp::Command
     end
 
     parameter "[EPISODES]", "Episodes to download" do |ep|
-      if ep.class == String && !ep.match(/[A-z]|\./)
+      if ep.class == String && ep.size > 1 &&!ep.match(/[A-z]|\./)
         ep.split(",").map(&:to_i)
-      elsif ep.class == String && ep.match(/\.\.|\.\.\./)
+      elsif ep.class == String && ep.size > 1 && ep.match(/\.\./)
         ep = ep.split("..")
         Range.new ep.first.to_i, ep.last.to_i
+      elsif ep.size == 1
+        ep.to_i
       end
     end
 
+    parameter "[REGEX]", "Regex to select download link" do |regex|
+      Regexp.new regex
+    end
+
     def execute
-      puts anime.inspect if anime
-      puts episodes.inspect if episodes
+      #puts anime.inspect if anime
+      #puts episodes.inspect if episodes
+      #puts regex.inspect if regex
+      download = Download.new anime, episodes, regex
+      download.reap
     end
   end
 end
