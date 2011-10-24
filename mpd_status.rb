@@ -1,10 +1,10 @@
 #! /usr/bin/env ruby
 
-Dir.chdir("/home/odin/scripts")
+Dir.chdir("/home/odin/dev/scripts")
 
 require 'rubygems'
-require 'notify-dzen'
-require 'dzen'
+require_relative 'notify-dzen'
+require_relative 'dzen'
 require 'librmpd'
 
 
@@ -27,16 +27,16 @@ def file_to_hash filename
   File.open(filename, 'r').each do |data|
     data.chop!
     key_value = data.split(":")
-    key = key_value.first.gsub(" ", "_").to_sym
+    key = key_value.first.gsub(" ", "_").downcase.to_sym
     value = key_value.last
     hash[key] = value.strip
   end
-  return hash
+  hash
 end
 
 def bat_display
  @PATH =  "/proc/acpi/battery/BAT0/"
- return " " unless File.exists? @PATH 
+ return " " unless File.exists? @PATH
  status = " BAT: STATE: "
  state_hash = file_to_hash @PATH + "state"
  info_hash = file_to_hash @PATH + "info"
@@ -44,13 +44,14 @@ def bat_display
  status << " PERCENT:"
  total = info_hash[:last_full_capacity].split(" ").first
  current = state_hash[:remaining_capacity].split(" ").first
- percent = ((current.to_f/total.to_f) * 100).round
- fg = case 
+ percent = ((current.to_f/total.to_f) * 100).round if total.to_f > 0
+ percent ||= -1
+ fg = case
       when percent < 5
         "red"
       when percent < 25
         "yellow"
-      else 
+      else
         "green"
       end
  status << (percent.to_s + "% ").fg(fg)
@@ -96,7 +97,7 @@ def chromo secs
                        [255, 255, 255]
                      end
 
-  red = red.to_s(16) 
+  red = red.to_s(16)
   green = green.to_s(16)
   blue = blue.to_s(16)
 
@@ -127,19 +128,56 @@ def volume_display
   return status
 end
 
-def notify_current_song song
-  handler = NotificationHandler.new
-  song_body = String.new
-  song.each do |k,v|
-    if k != "title"
-      song_body << (k + ": " + v + "\n") 
-    end
-  end
-  # This convoluted assingment uses splits to get the file name
-  # from the file path of the song
-  title_from_file = song.file.split("/").last.split(".").first
-  handler << Notification.new(song.title || title_from_file, song_body)
-  handler.notify
+@cpu ={}
+def get_cpu_stats options
+  prev_total = options.delete(:total)
+  prev_work = options.delete(:work)
+  prev_total ||= 0
+  prev_work ||= 0
+  # Make this useful
+  raw_stats = File.open("/proc/stat", "r").gets
+  split_stats = raw_stats.split[1..-1].map(&:to_i)
+  user, nice, system = split_stats.first(3)
+  work_cycles = user + nice + system
+  total_cycles = split_stats.reduce{|a,b| a + b}
+  delta_total_cycles = total_cycles - prev_total
+  delta_work_cycles = work_cycles - prev_work
+  percent_cpu = delta_work_cycles / delta_total_cycles.to_f * 100
+  @cpu = {total:total_cycles, work:work_cycles}
+  color = case percent_cpu
+          when 80 .. 100
+            "red"
+          when 40 ... 80
+            "yellow"
+          when 0 ... 40
+            "green"
+          end
+  cpu_string = " CPU: %0.2f%" % percent_cpu
+  cpu_string.fg(color)
+end
+
+def get_mem_status
+  # Make this useful
+  # /proc/meminfo
+  stats = file_to_hash "/proc/meminfo"
+  # all nums in kB
+  total = stats[:memtotal].split(" ").first.to_f
+  free = stats[:memfree].split(" ").first.to_f
+  buffers = stats[:buffers].split(" ").first.to_f
+  cached = stats[:cached].split(" ").first.to_f
+  really_free = free + buffers + cached
+  used = total - really_free
+  percent_used = used / total * 100
+  color = case percent_used
+          when 80 .. 100
+            "red"
+          when 40 ... 80
+            "yellow"
+          when 0 ... 40
+            "green"
+          end
+  mem_string = " MEM: %0.2f%" %  percent_used
+  mem_string.fg(color)
 end
 
 def display
@@ -147,7 +185,7 @@ def display
   dzen = "dzen2 -p -y -1 "
   display_settings = "-xs 1 -ta l"
   actions = " -e 'onstart=lower;button4=scrollup;button5=scrolldown;'"
-  font = " -fn 'Terminus-10'"
+  font = " -fn 'Terminus-14:Regular'"
 
   #mpd setup
   @mpd = MPD.new
@@ -156,17 +194,20 @@ def display
   rescue Exception
     puts "ERROR: MPD Connection fail"
   end
-  #@mpd.register_callback(Object.method('notify_current_song'), MPD::CURRENT_SONG_CALLBACK)
-  
+
   #I herd you like pipes ...
   IO.popen dzen + display_settings + actions + font, "w" do |pipe|
     while true
-      display = time_status + get_mpd_status(@mpd) + bat_display + volume_display
+      cpu = get_cpu_stats @cpu
+      display = time_status + cpu + get_mem_status + get_mpd_status(@mpd) + bat_display + volume_display
       pipe.puts display
-      sleep 0.25 
+      sleep 0.75
     end
   end
 
 end
 
-display
+# only start dzen if not called thru require
+if  __FILE__ == $0
+ display
+end

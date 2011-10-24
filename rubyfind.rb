@@ -2,47 +2,53 @@
 
 STAT_METHODS = File::Stat.instance_methods - Object.instance_methods - Comparable.instance_methods - ["<=>"]
 
-def find file
-  dir = `gvim --remote-expr 'getcwd()'`.chomp
-  dir ||= ENV["HOME"]
+def find file, dir="/home/odin"
   Dir.chdir(dir)
   results = []
   search_array = file.split("/")
-  search_array[-1] = "*"+ search_array[-1] unless search_array[-1][0] == 46 
+  last_word = search_array.last
+  search_array[-1] = "*"+ search_array[-1] unless search_array[-1][0] == 46
   file = search_array.join("/")
   search_glob = "**/"+ (file.gsub(/(\w)/, '\1*').gsub("/", '/**/'))
+  puts search_glob.to_s
   Dir.glob(search_glob) do |filename|
-    stat = File.stat filename
-    stat_hash = {"filename" => filename}
-    STAT_METHODS.each do |key|
-      stat_hash[key] = stat.method(key).call
-    end
-    results << stat_hash
+    results << filename
   end
-  results.sort do |a,b|
-    b["atime"] <=> a["atime"]
-  end
+   results.sort do |a,b|
+     if a.downcase.include?(last_word)
+      -1
+     elsif b.downcase.include?(last_word)
+       1
+     else
+       0
+     end
+   end
 end
 
 def get_input
-  output = `zenity --entry --title="Search Current Gvim Dir" --text="Query:"`
+  output = `kdialog --inputbox "Query"`
   output.chomp
 end
 
 def display results
   results_array = []
-  results.each do |file|
-    results_array << file["filename"]
+  results.first(10).each do |file|
+    results_array << file
+    results_array << file
   end
-  selection = ""
-  IO.popen "dmenu -l 10 -p '#{results_array.size} files found'", "r+" do |pipe|
-    pipe.puts results_array
-    pipe.close_write
-    selection = pipe.gets
-  end
-  return selection
+  `kdialog --menu "Select File:" #{results_array.join(" ")}`
 end
 
- 
-`gvim --remote #{display(find(get_input))}`
+`kdialog --msgbox #{ARGV.inspect}}`
+input = get_input
+if ARGV.first
+  results = find input, AGRV.first
+`kdialog --msgbox #{results.inspect}}`
+else
+  results = find input
+`kdialog --msgbox #{results}}`
+end
+selection = display results
+
+`kate -u #{selection}`
 

@@ -1,10 +1,10 @@
 #!/usr/bin/env ruby
 
-load '/home/odin/scripts/dzen.rb'
+require '/home/odin/dev/scripts/dzen'
 
 class Notification
   attr_reader :title, :timeout, :urgency, :body
-  def initialize(title, body, timeout = 5, urgency = false) 
+  def initialize(title, body, timeout = 5, urgency = false)
     @title = title
     @body = body
     @timeout = timeout
@@ -13,11 +13,11 @@ class Notification
 end
 
 class NotificationHandler
-  
+
   def initialize
     @notification_queue = Array.new
   end
-  
+
   #Add to notification queue methods
   def queue notification
     @notification_queue.unshift notification
@@ -45,8 +45,8 @@ class NotificationHandler
   end
 
   private
-  
- 
+
+
   #Will alter the body to break lines that
   #are too long to fit in the body width
   def calculate_num_of_lines body
@@ -63,8 +63,8 @@ class NotificationHandler
 
 end
 
-#notification = Notification.new "This is a title", 
+#notification = Notification.new "This is a title",
 #  "This is a body with more than one line. Caused by one execeding long line that will be formated."
-#handler = NotificationHandler.new 
+#handler = NotificationHandler.new
 #handler << notification
 #handler.notify
