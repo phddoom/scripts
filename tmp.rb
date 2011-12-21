@@ -16,4 +16,4 @@ while array_of_rands.size < num_of_plays.to_i
 end
 STDOUT.puts array_of_rands.inspect
 arg = (files.values_at *array_of_rands).map{|a| Shellwords.shellescape a}.join(" ")
-%x{mplayer -fs -fstype none fullscreen #{arg}}
+%x{mplayer -fs #{arg}}
