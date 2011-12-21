@@ -1,7 +1,5 @@
 #! /usr/bin/env ruby
 
-Dir.chdir("/home/odin/dev/scripts")
-
 require 'rubygems'
 require_relative 'notify-dzen'
 require_relative 'dzen'
@@ -185,7 +183,7 @@ def display
   dzen = "dzen2 -p -y -1 "
   display_settings = "-xs 1 -ta l"
   actions = " -e 'onstart=lower;button4=scrollup;button5=scrolldown;'"
-  font = " -fn 'Terminus-14:Regular'"
+  font = " -fn '-*-terminus-*-*-*-*-16-*-*-*-*-*-*-*'"
 
   #mpd setup
   @mpd = MPD.new
