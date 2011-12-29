@@ -34,7 +34,7 @@ end
 
 def bat_display
  @PATH =  "/sys/class/power_supply/BAT0/"
- return " " unless File.exists? @PATH
+ return "" unless File.exists? @PATH
  status = " BAT: "
  charge_now = File.open(@PATH + "/charge_now", "r").gets.strip.to_f
  charge_full = File.open(@PATH + "/charge_full", "r").gets.strip.to_f
