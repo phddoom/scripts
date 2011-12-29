@@ -33,17 +33,12 @@ def file_to_hash filename
 end
 
 def bat_display
- @PATH =  "/proc/acpi/battery/BAT0/"
+ @PATH =  "/sys/class/power_supply/BAT0/"
  return " " unless File.exists? @PATH
- status = " BAT: STATE: "
- state_hash = file_to_hash @PATH + "state"
- info_hash = file_to_hash @PATH + "info"
- status << state_hash[:charging_state]
- status << " PERCENT:"
- total = info_hash[:last_full_capacity].split(" ").first
- current = state_hash[:remaining_capacity].split(" ").first
- percent = ((current.to_f/total.to_f) * 100).round if total.to_f > 0
- percent ||= -1
+ status = " BAT: "
+ charge_now = File.open(@PATH + "/charge_now", "r").gets.strip.to_f
+ charge_full = File.open(@PATH + "/charge_full", "r").gets.strip.to_f
+ percent = (charge_now / charge_full) * 100
  fg = case
       when percent < 5
         "red"
@@ -52,7 +47,8 @@ def bat_display
       else
         "green"
       end
- status << (percent.to_s + "% ").fg(fg)
+ percent_string = "%0.2f%" % percent
+ status << percent_string.fg(fg)
 end
 
 def chromo secs
@@ -121,8 +117,7 @@ def get_volume channel
 end
 
 def volume_display
-  status = "Sound: Master: " + get_volume("Master")
-  #status << " Speaker: " << get_volume("Speaker")
+  status = " Sound: Master: " + get_volume("Master")
   return status
 end
 
@@ -183,7 +178,7 @@ def display
   dzen = "dzen2 -p -y -1 "
   display_settings = "-xs 1 -ta l"
   actions = " -e 'onstart=lower;button4=scrollup;button5=scrolldown;'"
-  font = " -fn '-*-terminus-*-*-*-*-16-*-*-*-*-*-*-*'"
+  font = " -fn 'Terminus-14'"
 
   #mpd setup
   @mpd = MPD.new
