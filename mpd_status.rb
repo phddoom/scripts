@@ -15,7 +15,7 @@ def get_mpd_status mpd
   song = mpd.current_song
   rep = mpd.repeat?.to_s.capitalize
   ran = mpd.random?.to_s.capitalize
-  title_from_file = song.file.split("/").last.split(".").first
+  title_from_file = song.file.split("/").last.split(".").first if song
   status = mpd.playing? ? " MPD: #{song.title || title_from_file} by #{song.artist || "Unknown"} - REP: #{rep} - RAN: #{ran}" : " MPD: NOT PLAYING"
   return status
 end
@@ -194,7 +194,7 @@ def display
       cpu = get_cpu_stats @cpu
       display = time_status + cpu + get_mem_status + get_mpd_status(@mpd) + bat_display + volume_display
       pipe.puts display
-      sleep 0.75
+      sleep 0.70
     end
   end
 
