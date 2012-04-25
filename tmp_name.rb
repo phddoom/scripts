@@ -4,7 +4,7 @@
 # when moving from one physical location to another.
 #
 # Resources Managed:
-# * screens ----- xrandr
+# * screens ----- xrandr, disper
 # * wallpapers -- nitrogen
 # * status bars - dzen2, pkill
 
@@ -20,7 +20,7 @@ class Monitor < Clamp::Command
   # Monitor subcommand to adjust the montior layout for a given location.
   # This subcommand relies on the xrandr executable.
   option ["-l","--list"], :flag, "List configured locations"
-  parameter "LOCATION", "change layout for given location"
+  parameter "[LOCATION]", "change layout for given location", :default => :toggle
   def execute
     puts "Stopping status bars"
     StatusBar::stop
@@ -36,8 +36,15 @@ class Monitor < Clamp::Command
       puts "Adjusting to work layout"
       `xrandr --output LVDS --auto --right-of HDMI-0 --output HDMI-0 --auto --primary`
     else
-      `xrandr --auto`
+      disper_list = %x{disper --list}.split("\n")
+      displays = disper_list.select{|l| l.include?("display")}
+      screens = displays.map{|d| d.match(/(?<screen>(((DFP|VGA|CRT)-\d)|LVDS))/)["screen"]}
+      screens_to_use = screens - ["DFP-3", "LVDS"]
+      screens_to_use = screens if screens_to_use.empty?
+      %x{disper -d #{screens_to_use.join(",")} -e}
     end
+    %x{xset r rate 300 50}
+    %x{nitrogen --restore}
     puts "Starting status bars"
     StatusBar::start
     puts "Adjusting complete"
