@@ -2,7 +2,7 @@
 {-# LANGUAGE ExtendedDefaultRules #-}
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
 
-import Prelude hiding (lines)
+import Prelude hiding (lines, unwords)
 import Shelly
 import Text.Printf
 import Data.Text.Lazy as LT hiding (filter, any, map)
@@ -20,7 +20,6 @@ data MemInfo = MemInfo {
   , buffers  :: Double
   , cached   :: Double
 }deriving(Show)
-{-monit_ = command_ "monit" ["-c", ".monitrc"]-}
 
 printPercent :: Double -> Text
 printPercent percent = pack $ printf "%0.2f%%" percent
@@ -59,17 +58,16 @@ displayMemInfo :: MemInfo -> Text
 displayMemInfo (MemInfo total free buffers cached) = display
                        where
                         used = total - (free + buffers + cached)
-                        display = "MEM: " `append` printPercent (used / total * 100)
+                        percent = used / total * 100
+                        display = "MEM: " `append` printPercent percent
 
+-- TODO: Clock, CPU, Sound, MPD
 main = shelly $ verbosely $ do
-  {-listing <- cmd "ls" "-a" "."-}
-
-  {-monit ["reload"]-}
-  nowIO <- readfile $ fromText chargeNowPath
+  nowIO  <- readfile $ fromText chargeNowPath
   fullIO <- readfile $ fromText chargeFullPath
+  memIO  <- readfile $ fromText memInfoPath
 
-  echo $ displayBattery nowIO fullIO
+  let batteryText = displayBattery nowIO fullIO
+  let memText     = displayMemInfo $ listToMemInfo $ filterMemInfo memIO
 
-  memIO <- readfile $ fromText memInfoPath
-  echo $ displayMemInfo $ listToMemInfo $ filterMemInfo memIO
-
+  echo $ unwords [batteryText, memText]
