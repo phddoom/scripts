@@ -9,16 +9,20 @@ import Data.Text.Lazy as LT hiding (filter, any, map)
 import Data.Text.Lazy.Read
 default (LT.Text)
 
+batteryPath :: Text
 batteryPath = "/sys/class/power_supply/BAT0/"
+chargeNowPath :: Text
 chargeNowPath = batteryPath `append` "charge_now"
+chargeFullPath :: Text
 chargeFullPath = batteryPath `append` "charge_full"
-memInfoPath = "/proc/meminfo" :: Text
+memInfoPath :: Text
+memInfoPath = "/proc/meminfo"
 
 data MemInfo = MemInfo {
-    total :: Double
-  , free  :: Double
-  , buffers  :: Double
-  , cached   :: Double
+    mTotal :: Double
+  , mFree  :: Double
+  , mBuffers  :: Double
+  , mCached   :: Double
 }deriving(Show)
 
 printPercent :: Double -> Text
@@ -52,7 +56,7 @@ textsToDoubles :: [Text] -> [Double]
 textsToDoubles [] = []
 textsToDoubles (x : xs) = parseMem x : textsToDoubles xs
                       where
-                        parseMem x = extractDouble . snd $ breakOnEnd ":" x
+                        parseMem y = extractDouble . snd $ breakOnEnd ":" y
 
 displayMemInfo :: MemInfo -> Text
 displayMemInfo (MemInfo total free buffers cached) = display
@@ -62,6 +66,7 @@ displayMemInfo (MemInfo total free buffers cached) = display
                         display = "MEM: " `append` printPercent percent
 
 -- TODO: Clock, CPU, Sound, MPD
+main :: IO ()
 main = shelly $ verbosely $ do
   nowIO  <- readfile $ fromText chargeNowPath
   fullIO <- readfile $ fromText chargeFullPath
