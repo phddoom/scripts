@@ -2,11 +2,15 @@
 {-# LANGUAGE ExtendedDefaultRules #-}
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
 
-import Prelude hiding (lines, unwords)
+import Prelude hiding (lines, unwords, words)
 import Shelly
 import Text.Printf
-import Data.Text.Lazy as LT hiding (filter, any, map)
+import Data.Text.Lazy as LT hiding (filter, any, map, head, tail)
 import Data.Text.Lazy.Read
+import Data.Time
+import System.Locale
+import System.IO
+import System.Posix hiding (append)
 default (LT.Text)
 
 batteryPath :: Text
@@ -65,14 +69,37 @@ displayMemInfo (MemInfo total free buffers cached) = display
                         percent = used / total * 100
                         display = "MEM: " `append` printPercent percent
 
--- TODO: Clock, CPU, Sound, MPD
-main :: IO ()
-main = shelly $ verbosely $ do
+displayCpuInfo :: (Text, Double, Double) -> (Text, Double, Double)
+displayCpuInfo (procText, prevWork, prevTotal) = ("CPU: " `append` display, workCycles, totalCycles)
+                        where
+                          cpu = map extractDouble . tail . words . head $ lines procText
+                          (user:nice:system:_) = cpu
+                          workCycles = user + nice + system
+                          totalCycles = sum cpu
+                          deltaWork = workCycles - prevWork
+                          deltaTotal = totalCycles - prevTotal
+                          display = printPercent (deltaWork / deltaTotal * 100)
+
+
+-- TODO: Sound, MPD, Color, dzen
+mainL :: Double -> Double -> IO ()
+mainL w t = shelly $ do
   nowIO  <- readfile $ fromText chargeNowPath
   fullIO <- readfile $ fromText chargeFullPath
   memIO  <- readfile $ fromText memInfoPath
+  timeIO <- liftIO getZonedTime
+  statIO <- readfile $ fromText "/proc/stat"
 
+  let timeText    = (pack "DATE: ") `append` (pack $ formatTime defaultTimeLocale "%A %b %d %r" timeIO)
   let batteryText = displayBattery nowIO fullIO
   let memText     = displayMemInfo $ listToMemInfo $ filterMemInfo memIO
+  let (cpuText, work, total)     = displayCpuInfo (statIO, w, t)
 
-  echo $ unwords [batteryText, memText]
+  echo $ unwords [timeText, cpuText, batteryText, memText]
+  liftIO $ nanosleep 500000000
+  liftIO $ mainL work total
+
+main :: IO ()
+main = do
+  hSetBuffering stdout NoBuffering
+  mainL 0 0
