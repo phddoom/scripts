@@ -12,7 +12,6 @@ import Network.MPD
 import System.Locale
 import System.IO (hClose, hSetBuffering, stdout, BufferMode(..))
 import System.Process
-import System.Posix hiding (append)
 import Control.Concurrent
 default (T.Text)
 
@@ -140,9 +139,7 @@ mainL w t = do
   memIO   <- readFile' memInfoPath
   timeIO  <- getZonedTime
   statIO  <- readFile' "/proc/stat"
-  (inH,outH,errH,pid) <- runInteractiveProcess "amixer" ["-c", "0", "get", "Master"] Nothing Nothing
-  hClose inH
-  soundIO <- hGetContents outH
+  soundIO <- readProcess "amixer" ["-c", "0", "get", "Master"] [] >>= (\x -> return(pack x))
   state <- withMPD $ status >>= (\x -> return(stState x))
   song <- withMPD $ currentSong
 
