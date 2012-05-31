@@ -92,15 +92,16 @@ displaySound soundIO = "Sound: " `append` display
     display      = wrapAction "1" "amixer -c 0 set Master toggle" colorPercent
 
 displayMPD :: Response State -> Response (Maybe Song) -> Text
-displayMPD (Left _) _ = "MPD: MIA"
-displayMPD (Right _) (Left _) = "MPD: MIA"
-displayMPD (Right _) (Right Nothing) = "MPD: ||"
-displayMPD (Right _) (Right (Just song)) = "MPD: " `append` title `append` " By " `append` artist
+displayMPD (Left _) _                    = "MPD: MIA"
+displayMPD (Right _) (Left _)            = "MPD: MIA"
+displayMPD (Right _) (Right Nothing)     = "MPD: ||"
+displayMPD (Right _) (Right (Just song)) =  display
   where
     (Just titleValues)  = sgGetTag Title song
     (Just artistValues) = sgGetTag Artist song
     title               = toText . head $ titleValues
     artist              = toText . head $ artistValues
+    display             = unwords ["MPD:", title, "By", artist]
 
 wrapFg :: Text -> Text -> Text
 wrapFg color text = "^fg(" `append` color `append` ")" `append` text `append` "^fg()"
