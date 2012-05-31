@@ -4,15 +4,18 @@
 
 import Prelude hiding (lines, unwords, words, readFile)
 import Text.Printf
-import Data.Text as T hiding (filter, any, map, head, tail, last)
+import Data.Text as T hiding (filter, any, map, head, tail, last, take, foldl1')
+import Data.List (foldl1')
 import Data.Text.Read
 import Data.Text.IO
 import Data.Time
 import Network.MPD
 import System.Locale
-import System.IO (hClose, hSetBuffering, stdout, BufferMode(..))
+import System.IO (hSetBuffering, stdout, BufferMode(..))
 import System.Process
 import Control.Concurrent
+import Control.Monad (liftM)
+import Numeric
 default (T.Text)
 
 batteryPath :: Text
@@ -24,85 +27,92 @@ chargeFullPath = batteryPath `append` "charge_full"
 memInfoPath :: Text
 memInfoPath = "/proc/meminfo"
 
-data MemInfo = MemInfo {
-    mTotal :: Double
-  , mFree  :: Double
-  , mBuffers  :: Double
-  , mCached   :: Double
-}deriving(Show)
+data MemInfo = MemInfo Double Double Double Double
 
 printPercent :: Double -> Text
 printPercent percent = colorize percent (pack $ printf "%0.2f%%" percent)
 
 printPercent' :: Double -> Text
-printPercent' percent = colorize (percent - 100) (pack $ printf "%0.2f%%" percent)
+printPercent' percent = colorize (100 - percent) (pack $ printf "%0.2f%%" percent)
 
 extractDouble :: Text -> Double
 extractDouble ts = unWrap . rational $ strip ts
-                 where
-                  unWrap (Right x) = fst x
-                  unWrap (Left _) = 0
+  where
+    unWrap (Right x) = fst x
+    unWrap (Left _) = 0
 
 displayBattery :: Text -> Text -> Text
 displayBattery nowIO fullIO = "BAT: " `append` printPercent' (now / full * 100)
-                            where
-                              now  = extractDouble nowIO
-                              full = extractDouble fullIO
+  where
+    now  = extractDouble nowIO
+    full = extractDouble fullIO
 
 filterMemInfo :: Text -> [Text]
 filterMemInfo memIO = filter isMemInfo ms
-                    where
-                      ms = lines memIO
-                      memStrings = ["MemTotal","MemFree","Buffers","Cached"]
-                      isMemInfo x = any (\y -> y x ) $ map isPrefixOf memStrings
+  where
+    ms          = lines memIO
+    memStrings  = ["MemTotal","MemFree","Buffers","Cached"]
+    isMemInfo x = any (\y -> y x ) $ map isPrefixOf memStrings
 
 listToMemInfo :: [Text] -> MemInfo
 listToMemInfo texts = MemInfo total free buffers cached
-                    where
-                      (total:free:buffers:cached:[]) = textsToDoubles texts
+  where
+    (total:free:buffers:cached:[]) = textsToDoubles texts
 
 textsToDoubles :: [Text] -> [Double]
 textsToDoubles [] = []
 textsToDoubles (x : xs) = parseMem x : textsToDoubles xs
-                      where
-                        parseMem y = extractDouble . snd $ breakOnEnd ":" y
+  where
+    parseMem y = extractDouble . snd $ breakOnEnd ":" y
 
 displayMemInfo :: MemInfo -> Text
 displayMemInfo (MemInfo total free buffers cached) = display
-                       where
-                        used = total - (free + buffers + cached)
-                        percent = used / total * 100
-                        display = "MEM: " `append` printPercent percent
+  where
+  used    = total - (free + buffers + cached)
+  percent = used / total * 100
+  display = "MEM: " `append` printPercent percent
 
 displayCpuInfo :: (Text, Double, Double) -> (Text, Double, Double)
-displayCpuInfo (procText, prevWork, prevTotal) = ("CPU: " `append` display, workCycles, totalCycles)
-                        where
-                          cpu = map extractDouble . tail . words . head $ lines procText
-                          (user:nice:system:_) = cpu
-                          workCycles = user + nice + system
-                          totalCycles = sum cpu
-                          deltaWork = workCycles - prevWork
-                          deltaTotal = totalCycles - prevTotal
-                          display = printPercent (deltaWork / deltaTotal * 100)
+displayCpuInfo (procT, pWork, pTotal) = (display, workCycles, totalCycles)
+  where
+    cpu         = map extractDouble . tail . words . head $ lines procT
+    workCycles  = sum $ take 3 cpu
+    totalCycles = sum cpu
+    dWork       = workCycles - pWork
+    dTotal      = totalCycles - pTotal
+    display     = "CPU: " `append` printPercent (dWork / dTotal * 100)
 
 displaySound :: Text -> Text
-displaySound soundIO = "Sound: " `append` percent
-                     where
-                       output = words . last $ lines soundIO
-                       (_:_:_:percent:_) = output
+displaySound soundIO = "Sound: " `append` display
+  where
+    output       = words . last $ lines soundIO
+    isOn         = isInfixOf "[on]" $ last output
+    percent      = output !! 3
+    colorPercent = colorizeBool isOn percent
+    display      = wrapAction "1" "amixer -c 0 set Master toggle" colorPercent
 
 displayMPD :: Response State -> Response (Maybe Song) -> Text
-displayMPD (Left state) _ = "MPD: MIA"
-displayMPD (Right state) (Right (Nothing)) = "MPD: ||"
-displayMPD (Right state) (Right (Just song)) = "MPD: " `append` title `append` " By " `append` artist
-                where
-                  (Just titleValues) = sgGetTag Title song
-                  (Just artistValues) = sgGetTag Artist song
-                  title = toText . head $ titleValues
-                  artist = toText . head $ artistValues
+displayMPD (Left _) _ = "MPD: MIA"
+displayMPD (Right _) (Left _) = "MPD: MIA"
+displayMPD (Right _) (Right Nothing) = "MPD: ||"
+displayMPD (Right _) (Right (Just song)) = "MPD: " `append` title `append` " By " `append` artist
+  where
+    (Just titleValues)  = sgGetTag Title song
+    (Just artistValues) = sgGetTag Artist song
+    title               = toText . head $ titleValues
+    artist              = toText . head $ artistValues
 
 wrapFg :: Text -> Text -> Text
 wrapFg color text = "^fg(" `append` color `append` ")" `append` text `append` "^fg()"
+
+wrapAction :: Text -> Text -> Text -> Text
+wrapAction button command text = foldl1' append texts
+  where
+    texts = ["^ca(", button, ",", command, ")", text, "^ca()"]
+
+colorizeBool :: Bool -> Text -> Text
+colorizeBool True text = wrapFg "green" text
+colorizeBool False text = wrapFg "red" text
 
 colorize :: Double -> Text -> Text
 colorize percent text
@@ -125,13 +135,49 @@ colorize percent text
   | percent <= 85  = wrapFg "#992200" text
   | percent <= 90  = wrapFg "#991100" text
   | percent <= 100 = wrapFg "#990000" text
+colorize _ text = text
+
+chromo :: Double -> Text
+chromo mins
+    | mins <= 239 = "#00FF" `append` showHex' ((60 - mins) / 4)
+    | mins == 240 = "#00FF00"
+    | mins <= 479 = "#" `append` showHex' (mins - 240 / 4) `append` "FF00"
+    | mins == 480 = "#FFFF00"
+    | mins <= 719 = "#FF" `append` showHex' (60 - ((mins - 480) / 4)) `append` "00"
+    | mins == 720 = "#FF0000"
+    | mins <= 959 = "#FF00" `append` showHex' ((mins - 720) / 4)
+    | mins == 960 = "#FF00FF"
+    | mins <= 1199 = "#" `append` showHex' ((60 - (mins - 960)) / 4) `append` "00FF"
+    | mins == 1200 = "#0000FF"
+    | mins <= 1439 = "#00" `append` showHex' ((mins - 1200) / 4) `append` "FF"
+    | otherwise  = "#FFFFFF"
+  where
+    showHex' x = pack $ showHex (abs (round $ x * 4.25)::Integer) ""
+
+displayTime :: ZonedTime -> Text
+displayTime time = display
+  where
+    formatedTime = pack (formatTime defaultTimeLocale "%A %b %d %r" time)
+    tod = localTimeOfDay $ zonedTimeToLocalTime time
+    hour = todHour tod
+    mins = todMin  tod
+    ticks = fromIntegral ((hour * 60) + mins) :: Double
+    colorTime = wrapFg (chromo ticks) formatedTime
+    display = "DATE: " `append` colorTime
 
 readFile' :: Text -> IO Text
 readFile' t = readFile $ unpack t
 
+readProcess' :: Text -> [Text] -> Text -> IO Text
+readProcess' command args input = liftM pack tReadProcess
+  where
+    command' = unpack command
+    args' = map unpack args
+    input' = unpack input
+    tReadProcess = readProcess command' args' input'
 
 
--- TODO: MPD, dzen
+-- TODO: dzen
 mainL :: Double -> Double -> IO ()
 mainL w t = do
   nowIO   <- readFile' chargeNowPath
@@ -139,11 +185,11 @@ mainL w t = do
   memIO   <- readFile' memInfoPath
   timeIO  <- getZonedTime
   statIO  <- readFile' "/proc/stat"
-  soundIO <- readProcess "amixer" ["-c", "0", "get", "Master"] [] >>= (\x -> return(pack x))
-  state <- withMPD $ status >>= (\x -> return(stState x))
-  song <- withMPD $ currentSong
+  soundIO <- readProcess' "amixer" ["-c", "0", "get", "Master"] empty
+  state <- withMPD $ liftM stState status
+  song <- withMPD currentSong
 
-  let timeText    = "DATE: " `append` (pack $ formatTime defaultTimeLocale "%A %b %d %r" timeIO)
+  let timeText    = displayTime timeIO
   let batteryText = displayBattery nowIO fullIO
   let memText     = displayMemInfo $ listToMemInfo $ filterMemInfo memIO
   let (cpuText, work, total)     = displayCpuInfo (statIO, w, t)
