@@ -1,8 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ExtendedDefaultRules #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
 
-import Prelude hiding (lines, unwords, words, readFile)
+import Prelude hiding (lines, unwords, words, readFile, putStrLn)
 import Text.Printf
 import Data.Text as T hiding (filter, any, map, head, tail, last, take, foldl1')
 import Data.List (foldl1')
@@ -11,10 +12,11 @@ import Data.Text.IO
 import Data.Time
 import Network.MPD
 import System.Locale
-import System.IO (hSetBuffering, stdout, BufferMode(..))
+import System.IO (hSetBuffering, BufferMode(..), Handle)
 import System.Process
 import Control.Concurrent
 import Control.Monad (liftM)
+import Control.Exception
 import Numeric
 default (T.Text)
 
@@ -42,10 +44,12 @@ extractDouble ts = unWrap . rational $ strip ts
     unWrap (Left _) = 0
 
 displayBattery :: Text -> Text -> Text
-displayBattery nowIO fullIO = "BAT: " `append` printPercent' (now / full * 100)
+displayBattery nowIO fullIO = if isNaN percent then "" else display
   where
     now  = extractDouble nowIO
     full = extractDouble fullIO
+    percent = now / full * 100
+    display = "BAT: " `append` printPercent' percent
 
 filterMemInfo :: Text -> [Text]
 filterMemInfo memIO = filter isMemInfo ms
@@ -92,16 +96,16 @@ displaySound soundIO = "Sound: " `append` display
     display      = wrapAction "1" "amixer -c 0 set Master toggle" colorPercent
 
 displayMPD :: Response State -> Response (Maybe Song) -> Text
-displayMPD (Left _) _                    = "MPD: MIA"
-displayMPD (Right _) (Left _)            = "MPD: MIA"
-displayMPD (Right _) (Right Nothing)     = "MPD: ||"
-displayMPD (Right _) (Right (Just song)) =  display
+displayMPD (Left _) _                    = unwords ["MPD:", wrapFg "red" "MIA"]
+displayMPD (Right _) (Left _)            = unwords ["MPD:", wrapFg "red" "MIA"]
+displayMPD (Right _) (Right Nothing)     = unwords ["MPD:", wrapFg "yellow" "||"]
+displayMPD (Right _) (Right (Just song)) = displayPlay
   where
     (Just titleValues)  = sgGetTag Title song
     (Just artistValues) = sgGetTag Artist song
     title               = toText . head $ titleValues
     artist              = toText . head $ artistValues
-    display             = unwords ["MPD:", title, "By", artist]
+    displayPlay         = unwords ["MPD:", title, "By", artist]
 
 wrapFg :: Text -> Text -> Text
 wrapFg color text = "^fg(" `append` color `append` ")" `append` text `append` "^fg()"
@@ -167,7 +171,7 @@ displayTime time = display
     display = "DATE: " `append` colorTime
 
 readFile' :: Text -> IO Text
-readFile' t = readFile $ unpack t
+readFile' t = handle (\(e :: IOException) -> return "") $ readFile $ unpack t
 
 readProcess' :: Text -> [Text] -> Text -> IO Text
 readProcess' command args input = liftM pack tReadProcess
@@ -178,9 +182,9 @@ readProcess' command args input = liftM pack tReadProcess
     tReadProcess = readProcess command' args' input'
 
 
--- TODO: dzen
-mainL :: Double -> Double -> IO ()
-mainL w t = do
+-- TODO: create PID file
+mainL :: Handle -> Double -> Double -> IO ()
+mainL pipe w t = do
   nowIO   <- readFile' chargeNowPath
   fullIO  <- readFile' chargeFullPath
   memIO   <- readFile' memInfoPath
@@ -197,17 +201,21 @@ mainL w t = do
   let soundText = displaySound soundIO
   let mpdText = displayMPD state song
 
-  hPutStrLn stdout $ unwords [ timeText
+  hPutStrLn pipe $ unwords [ timeText
                  , cpuText
                  , memText
                  , batteryText
                  , mpdText
                  , soundText
                  ]
+
   threadDelay 1000000
-  mainL work total
+  mainL pipe work total
 
 main :: IO ()
 main = do
-  hSetBuffering stdout NoBuffering
-  mainL 0 0
+  let dzenCmd = "dzen2 -p -y -1 -fn Terminus-14 -ta l -e onstart=lower"
+  let dzen = (shell dzenCmd){ std_in = CreatePipe }
+  (Just pipe, _, _, _) <- createProcess dzen 
+  hSetBuffering pipe NoBuffering
+  mainL pipe 0 0
