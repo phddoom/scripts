@@ -12,7 +12,7 @@ import Data.Text.IO
 import Data.Time
 import Network.MPD
 import System.Locale
-import System.IO (hSetBuffering, BufferMode(..), Handle)
+import System.IO (hSetBuffering, stdout, BufferMode(..), Handle)
 import System.Process
 import Control.Concurrent
 import Control.Monad (liftM)
@@ -157,7 +157,11 @@ chromo mins
     | mins <= 1439 = "#00" `append` showHex' ((mins - 1200) / 4) `append` "FF"
     | otherwise  = "#FFFFFF"
   where
-    showHex' x = pack $ showHex (abs (round $ x * 4.25)::Integer) ""
+    showHex' x = pack . paddedHex $ hex x
+    hex x = showHex (abs (round $ x * 4.25)::Integer) ""
+    paddedHex hex | Prelude.length hex < 2 = "0" ++ hex
+                  | Prelude.length hex > 2 = take 2 hex
+                  | Prelude.length hex == 2 = hex
 
 displayTime :: ZonedTime -> Text
 displayTime time = display
@@ -182,7 +186,7 @@ readProcess' command args input = liftM pack tReadProcess
     tReadProcess = readProcess command' args' input'
 
 
--- TODO: create PID file
+-- TODO: create PID file, debug output
 mainL :: Handle -> Double -> Double -> IO ()
 mainL pipe w t = do
   nowIO   <- readFile' chargeNowPath
