@@ -8,12 +8,14 @@ import Text.Printf
 import Data.Text as T hiding (filter, any, map, head, tail, last, take, foldl1')
 import Data.List (foldl1')
 import Data.Text.Read
-import Data.Text.IO
+import Data.Text.IO hiding (writeFile)
 import Data.Time
 import Network.MPD
 import System.Locale
-import System.IO (hSetBuffering, stdout, BufferMode(..), Handle)
+import System.IO (hSetBuffering, BufferMode(..), Handle)
 import System.Process
+import System.Posix.Process
+import System.Posix.Signals
 import Control.Concurrent
 import Control.Monad (liftM)
 import Control.Exception
@@ -159,9 +161,9 @@ chromo mins
   where
     showHex' x = pack . paddedHex $ hex x
     hex x = showHex (abs (round $ x * 4.25)::Integer) ""
-    paddedHex hex | Prelude.length hex < 2 = "0" ++ hex
-                  | Prelude.length hex > 2 = take 2 hex
-                  | Prelude.length hex == 2 = hex
+    paddedHex hx | Prelude.length hx < 2 = "0" ++ hx
+                 | Prelude.length hx > 2 = take 2 hx
+                 | otherwise =  hx
 
 displayTime :: ZonedTime -> Text
 displayTime time = display
@@ -175,7 +177,7 @@ displayTime time = display
     display = "DATE: " `append` colorTime
 
 readFile' :: Text -> IO Text
-readFile' t = handle (\(e :: IOException) -> return "") $ readFile $ unpack t
+readFile' t = handle (\(_ :: IOException) -> return "") $ readFile $ unpack t
 
 readProcess' :: Text -> [Text] -> Text -> IO Text
 readProcess' command args input = liftM pack tReadProcess
@@ -186,7 +188,7 @@ readProcess' command args input = liftM pack tReadProcess
     tReadProcess = readProcess command' args' input'
 
 
--- TODO: create PID file, debug output
+-- TODO: debug output
 mainL :: Handle -> Double -> Double -> IO ()
 mainL pipe w t = do
   nowIO   <- readFile' chargeNowPath
@@ -216,10 +218,16 @@ mainL pipe w t = do
   threadDelay 1000000
   mainL pipe work total
 
+killHandler :: ProcessHandle -> IO ()
+killHandler pid = terminateProcess pid
+
 main :: IO ()
 main = do
   let dzenCmd = "dzen2 -p -y -1 -fn Terminus-14 -ta l -e onstart=lower"
   let dzen = (shell dzenCmd){ std_in = CreatePipe }
-  (Just pipe, _, _, _) <- createProcess dzen 
+  (Just pipe, _, _, dPid) <- createProcess dzen
   hSetBuffering pipe NoBuffering
+  pid <- getProcessID
+  writeFile "/home/odin/.status_bar.pid" (show pid)
+  _ <- installHandler sigTERM (Catch $ killHandler dPid) Nothing
   mainL pipe 0 0

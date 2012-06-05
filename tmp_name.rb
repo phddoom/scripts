@@ -53,10 +53,7 @@ end
 
 class StatusBar < Clamp::Command
   def self.start
-    pid = spawn "mpd_status.rb"
-    File.open "/home/odin/.status_bar.pid", "w+" do |file|
-      file.puts pid.to_s
-    end
+    `status`
   end
   subcommand "start", "Start your status bar" do
     parameter "[COMMAND]", "Specify command to run as status bar"
