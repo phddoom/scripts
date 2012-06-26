@@ -53,7 +53,8 @@ end
 
 class StatusBar < Clamp::Command
   def self.start
-    `status`
+    pid = spawn "status"
+    Process.detach(pid)
   end
   subcommand "start", "Start your status bar" do
     parameter "[COMMAND]", "Specify command to run as status bar"
