@@ -223,7 +223,7 @@ killHandler pid = terminateProcess pid
 
 main :: IO ()
 main = do
-  let dzenCmd = "dzen2 -p -y -1 -fn Terminus-14 -ta l -e onstart=lower -x 1"
+  let dzenCmd = "dzen2 -p -y -1 -fn Terminus-14 -ta l -e onstart=lower -xs 1"
   let dzen = (shell dzenCmd){ std_in = CreatePipe }
   (Just pipe, _, _, dPid) <- createProcess dzen
   hSetBuffering pipe NoBuffering

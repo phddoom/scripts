@@ -4,7 +4,7 @@
 # when moving from one physical location to another.
 #
 # Resources Managed:
-# * screens ----- xrandr, disper
+# * screens ----- xrandr
 # * wallpapers -- nitrogen
 # * status bars - dzen2, pkill
 
@@ -36,12 +36,22 @@ class Monitor < Clamp::Command
       puts "Adjusting to work layout"
       `xrandr --output LVDS --auto --right-of HDMI-0 --output HDMI-0 --auto --primary`
     else
-      disper_list = %x{disper --list}.split("\n")
-      displays = disper_list.select{|l| l.include?("display")}
-      screens = displays.map{|d| d.match(/(?<screen>(((DFP|VGA|CRT)-\d)|LVDS))/)["screen"]}
-      screens_to_use = screens - ["DFP-3", "LVDS"]
-      screens_to_use = screens if screens_to_use.empty?
-      %x{disper -d #{screens_to_use.join(",")} -e}
+      xrandr_string = %x{xrandr --query}
+      all_outputs = xrandr_string.split("\n").select{|l| l.include?("connected")}
+      connected_outputs = all_outputs.reject{|l| l.include?("disconnected")}.map(&:split).map(&:first)
+      disconnected_outputs = all_outputs.reject{|l| l.include?("connected")}.map(&:split).map(&:first)
+      screens_to_use = connected_outputs - ["DFP-3", "LVDS"]
+      screens_to_use = connected_outputs if screens_to_use.empty?
+      screens_to_turn_off = ["DFP-3", "LVDS"] - screens_to_use - disconnected_outputs
+      %x{xrandr #{screens_to_turn_off.map{|e| "--output #{e} --off"}.join(" ")}}
+      xrandr_output_string = "xrandr "
+      screens_to_use.each_with_index do |e,i|
+        xrandr_output_string << "--output #{e}"
+        xrandr_output_string << " --auto"
+        xrandr_output_string << " --primary" if i == 0
+        xrandr_output_string << " --left-of #{screens_to_use[i+1]}" if e != screens_to_use.last
+      end
+      %x{#{xrandr_output_string}}
     end
     %x{xset r rate 300 50}
     %x{nitrogen --restore}
