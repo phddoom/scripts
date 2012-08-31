@@ -10,6 +10,7 @@ import Data.List (foldl1')
 import Data.Text.Read
 import Data.Text.IO hiding (writeFile)
 import Data.Time
+import Data.Maybe
 import Network.MPD
 import System.Locale
 import System.IO (hSetBuffering, BufferMode(..), Handle)
@@ -104,7 +105,7 @@ displayMPD (Right _) (Right Nothing)     = unwords ["MPD:", wrapFg "yellow" "||"
 displayMPD (Right _) (Right (Just song)) = displayPlay
   where
     (Just titleValues)  = sgGetTag Title song
-    (Just artistValues) = sgGetTag Artist song
+    artistValues        = fromMaybe ["Unknown"] (sgGetTag Artist song)
     title               = toText . head $ titleValues
     artist              = toText . head $ artistValues
     displayPlay         = unwords ["MPD:", title, "By", artist]
