@@ -40,13 +40,14 @@ class Monitor < Clamp::Command
       all_outputs = xrandr_string.split("\n").select{|l| l.include?("connected")}
       connected_outputs = all_outputs.reject{|l| l.include?("disconnected")}.map(&:split).map(&:first)
       disconnected_outputs = all_outputs.reject{|l| l.include?("connected")}.map(&:split).map(&:first)
-      screens_to_use = connected_outputs - ["DFP-3", "LVDS"]
+      screens_to_use = connected_outputs - ["DP-3", "LVDS"]
       screens_to_use = connected_outputs if screens_to_use.empty?
-      screens_to_turn_off = ["DFP-3", "LVDS"] - screens_to_use - disconnected_outputs
+      screens_to_turn_off = ["DP-3", "LVDS"] - screens_to_use - disconnected_outputs
       %x{xrandr #{screens_to_turn_off.map{|e| "--output #{e} --off"}.join(" ")}}
       xrandr_output_string = "xrandr "
+      screens_to_use.sort!
       screens_to_use.each_with_index do |e,i|
-        xrandr_output_string << "--output #{e}"
+        xrandr_output_string << " --output #{e}"
         xrandr_output_string << " --auto"
         xrandr_output_string << " --primary" if i == 0
         xrandr_output_string << " --left-of #{screens_to_use[i+1]}" if e != screens_to_use.last
@@ -55,6 +56,8 @@ class Monitor < Clamp::Command
     end
     %x{xset r rate 300 50}
     %x{nitrogen --restore}
+    %x{xrandr --dpi 96}
+    %x{xmodmap /home/odin/.Xmodmap}
     puts "Starting status bars"
     StatusBar::start
     puts "Adjusting complete"
