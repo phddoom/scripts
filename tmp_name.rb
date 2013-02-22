@@ -38,11 +38,17 @@ class Monitor < Clamp::Command
     else
       xrandr_string = %x{xrandr --query}
       all_outputs = xrandr_string.split("\n").select{|l| l.include?("connected")}
+      puts "all_outputs: #{all_outputs.inspect}"
       connected_outputs = all_outputs.reject{|l| l.include?("disconnected")}.map(&:split).map(&:first)
-      disconnected_outputs = all_outputs.reject{|l| l.include?("connected")}.map(&:split).map(&:first)
-      screens_to_use = connected_outputs - ["DP-3", "LVDS"]
+      puts "connected_outputs: #{connected_outputs.inspect}"
+      disconnected_outputs = all_outputs.select{|l| l.include?("disconnected")}.map(&:split).map(&:first)
+      puts "disconnected_outputs: #{disconnected_outputs.inspect}"
+      screens_to_use = connected_outputs - ["DP-3", "LVDS", "eDP-1"]
+      puts "screens_to_use: #{screens_to_use.inspect}"
       screens_to_use = connected_outputs if screens_to_use.empty?
-      screens_to_turn_off = ["DP-3", "LVDS"] - screens_to_use - disconnected_outputs
+      puts "screens_to_use: #{screens_to_use.inspect}"
+      screens_to_turn_off = (["DP-3", "LVDS", "eDP-1"] + disconnected_outputs) - screens_to_use # - disconnected_outputs
+      puts "screens_to_turn_off: #{screens_to_turn_off.inspect}"
       %x{xrandr #{screens_to_turn_off.map{|e| "--output #{e} --off"}.join(" ")}}
       xrandr_output_string = "xrandr "
       screens_to_use.sort!
@@ -52,6 +58,7 @@ class Monitor < Clamp::Command
         xrandr_output_string << " --primary" if i == 0
         xrandr_output_string << " --left-of #{screens_to_use[i+1]}" if e != screens_to_use.last
       end
+      puts "Running: #{xrandr_output_string}"
       %x{#{xrandr_output_string}}
     end
     %x{xset r rate 300 50}
